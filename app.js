@@ -1,24 +1,16 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getDatabase, ref, push, onValue, get, query, orderByChild, equalTo } from 'firebase/database';
-import { Chart } from 'chart.js/auto';
-
+// Firebase configuration
 const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID
+    apiKey: "AIzaSyB1RH4jojDz8zExIOiwmvkXtRy0R0I7xgs",
+    authDomain: "languageacademy-b830a.firebaseapp.com",
+    databaseURL: "https://languageacademy-b830a-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "languageacademy-b830a",
+    storageBucket: "languageacademy-b830a.appspot.com",
+    messagingSenderId: "849632826608",
+    appId: "1:849632826608:web:7290467ebe776f473e1e35"
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const database = getDatabase(app);
-
-document.addEventListener('DOMContentLoaded', initApp);
+firebase.initializeApp(firebaseConfig);
 
 // Get elements
 const authForm = document.getElementById('authForm');
@@ -147,15 +139,15 @@ async function generateInvoicePDF(studentName, paymentData) {
 
 // Calculate and display total balance
 async function updateBalance() {
-    const user = auth.currentUser;
+    const user = firebase.auth().currentUser;
     if (user) {
-        const paymentRef = ref(database, 'payments/' + user.uid);
-        const expenseRef = ref(database, 'expenses/' + user.uid);
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
+        const expenseRef = firebase.database().ref('expenses/' + user.uid);
 
         try {
             const [paymentSnapshot, expenseSnapshot] = await Promise.all([
-                get(paymentRef),
-                get(expenseRef)
+                paymentRef.once('value'),
+                expenseRef.once('value')
             ]);
 
             let totalIncome = 0;
@@ -171,18 +163,21 @@ async function updateBalance() {
 
             const balance = totalIncome - totalExpenses;
             balanceAmount.textContent = `$${balance.toFixed(2)}`;
+            document.getElementById('incomeAmount').textContent = `$${totalIncome.toFixed(2)}`;
+            document.getElementById('expenseAmount').textContent = `$${totalExpenses.toFixed(2)}`;
         } catch (error) {
             console.error('Error calculating balance:', error);
         }
     }
 }
 
+
 // Load and display payments with grouping by student name
 function loadPayments() {
-    const user = auth.currentUser;
+    const user = firebase.auth().currentUser;
     if (user) {
-        const paymentRef = ref(database, 'payments/' + user.uid);
-        onValue(paymentRef, (snapshot) => {
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
+        paymentRef.on('value', (snapshot) => {
             const paymentSummary = {};
 
             // Summarize payments by student name
@@ -221,10 +216,10 @@ function loadPayments() {
 
 // Load student names for the datalist
 function loadStudentNames() {
-    const user = auth.currentUser;
+    const user = firebase.auth().currentUser;
     if (user) {
-        const paymentRef = ref(database, 'payments/' + user.uid);
-        get(paymentRef).then((snapshot) => {
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
+        paymentRef.once('value', (snapshot) => {
             const studentNames = new Map();
             snapshot.forEach((childSnapshot) => {
                 const payment = childSnapshot.val();
@@ -276,10 +271,10 @@ function loadStudentNames() {
 
 // Updated showStudentPopup function to handle PDF generation
 function showStudentPopup(studentName) {
-    const user = auth.currentUser;
+    const user = firebase.auth().currentUser;
     if (user) {
-        const paymentRef = ref(database, 'payments/' + user.uid);
-        get(query(paymentRef, orderByChild('studentName'), equalTo(studentName))).then((snapshot) => {
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
+        paymentRef.orderByChild('studentName').equalTo(studentName).once('value', (snapshot) => {
             let paymentData = [];
             snapshot.forEach((childSnapshot) => {
                 paymentData.push(childSnapshot.val());
@@ -347,7 +342,7 @@ async function generateInvoicePDFAndSendWhatsApp(studentName, paymentData, phone
 
 // Initialize the application
 function initApp() {
-    onAuthStateChanged(auth, (user) => {
+    firebase.auth().onAuthStateChanged((user) => {
         if (user) {
             authContainer.style.display = 'none';
             dashboard.style.display = 'block';
@@ -355,7 +350,7 @@ function initApp() {
             loadUserData();
             updateBalance();
             loadPayments();
-            loadStudentNames();
+            loadStudentNames();  // Load student names for autocomplete
         } else {
             authContainer.style.display = 'block';
             dashboard.style.display = 'none';
@@ -372,7 +367,7 @@ function initApp() {
     authForm.addEventListener('submit', (e) => e.preventDefault());
     loginBtn.addEventListener('click', loginUser);
     registerBtn.addEventListener('click', registerUser);
-    logoutBtn.addEventListener('click', () => signOut(auth));
+    logoutBtn.addEventListener('click', () => firebase.auth().signOut());
     studentPaymentForm.addEventListener('submit', recordStudentPayment);
     expenseRecordForm.addEventListener('submit', recordExpense);
     closePopup.onclick = () => studentPopup.style.display = 'none';
@@ -388,7 +383,7 @@ function initApp() {
 function loginUser() {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    signInWithEmailAndPassword(auth, email, password)
+    firebase.auth().signInWithEmailAndPassword(email, password)
         .catch((error) => {
             console.error('Error:', error);
             alert('Login failed. Please check your credentials.');
@@ -398,7 +393,7 @@ function loginUser() {
 function registerUser() {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    createUserWithEmailAndPassword(auth, email, password)
+    firebase.auth().createUserWithEmailAndPassword(email, password)
         .catch((error) => {
             console.error('Error:', error);
             alert('Registration failed. Please try again.');
@@ -427,11 +422,11 @@ async function recordStudentPayment(e) {
         return;
     }
 
-    const user = auth.currentUser;
+    const user = firebase.auth().currentUser;
     if (user) {
-        const paymentRef = ref(database, 'payments/' + user.uid);
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
         try {
-            await push(paymentRef, {
+            await paymentRef.push({
                 studentName: studentName,
                 category: paymentCategory,
                 amount: paymentAmount,
@@ -466,11 +461,11 @@ async function recordExpense(e) {
         return;
     }
 
-    const user = auth.currentUser;
+    const user = firebase.auth().currentUser;
     if (user) {
-        const expenseRef = ref(database, 'expenses/' + user.uid);
+        const expenseRef = firebase.database().ref('expenses/' + user.uid);
         try {
-            await push(expenseRef, {
+            await expenseRef.push({
                 type: expenseType,
                 amount: expenseAmount,
                 date: expenseDate
@@ -486,7 +481,33 @@ async function recordExpense(e) {
     }
 }
 
+function loadUserData() {
+    const user = firebase.auth().currentUser;
+    if (user) {
+        // Load and display expenses
+        const expenseRef = firebase.database().ref('expenses/' + user.uid);
+        expenseRef.on('value', (snapshot) => {
+            let html = '';
+            snapshot.forEach((childSnapshot) => {
+                const expense = childSnapshot.val();
+                html += `<li>Type: ${expense.type}, Amount: $${expense.amount.toFixed(2)}, Date: ${expense.date}</li>`;
+            });
+            expenseItems.innerHTML = html;
+        });
 
+        // Load and display income chart
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
+        paymentRef.on('value', (snapshot) => {
+            const monthlyIncome = {};
+            snapshot.forEach((childSnapshot) => {
+                const payment = childSnapshot.val();
+                const month = new Date(payment.date).toLocaleString('default', { month: 'long' });
+                monthlyIncome[month] = (monthlyIncome[month] || 0) + payment.amount;
+            });
+            updateIncomeChart(monthlyIncome);
+        });
+    }
+}
 
 // Initialize the app when the window loads
 window.onload = initApp;
@@ -562,12 +583,12 @@ function updateExpenseChart(monthlyExpenses) {
 }
 
 function loadUserData() {
-    const user = auth.currentUser;
+    const user = firebase.auth().currentUser;
     if (user) {
         // Load and display expenses
-        const expenseRef = ref(database, 'expenses/' + user.uid);
+        const expenseRef = firebase.database().ref('expenses/' + user.uid);
         const monthlyExpenses = {};
-        onValue(expenseRef, (snapshot) => {
+        expenseRef.on('value', (snapshot) => {
             let html = '';
             snapshot.forEach((childSnapshot) => {
                 const expense = childSnapshot.val();
@@ -581,8 +602,8 @@ function loadUserData() {
         });
 
         // Load and display income chart
-        const paymentRef = ref(database, 'payments/' + user.uid);
-        onValue(paymentRef, (snapshot) => {
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
+        paymentRef.on('value', (snapshot) => {
             const monthlyIncome = {};
             snapshot.forEach((childSnapshot) => {
                 const payment = childSnapshot.val();
@@ -658,9 +679,8 @@ function showPopup(popup) {
     if (expenseChart) updateExpenseChart(lastMonthlyExpenseData);
   });
   
-// Asegúrate de que las funciones que usen Firebase se ejecuten después de la inicialización
-window.onload = function() {
-    // Llama a las funciones que dependen de Firebase aquí
+  // Inicialización de la aplicación
+  window.onload = function() {
     initApp();
-}
-
+    // La inicialización de los botones flotantes ya está incluida en los event listeners anteriores
+  };
