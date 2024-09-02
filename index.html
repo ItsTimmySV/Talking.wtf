@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Talking.wtf - Tracker</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div id="branding">
+                <h1><span class="highlight">Talking.wtf</span> Finance Tracker</h1>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="#" id="logout" style="display: none;">Logout</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="authContainer" class="auth-container">
+            <h2>Login or Register</h2>
+            <form id="authForm">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="btn" id="loginBtn">Login</button>
+                <button type="button" class="btn" id="registerBtn">Register</button>
+            </form>
+        </div>
+
+        <div id="dashboard" class="dashboard">
+            <h2>Welcome to your Finance Dashboard</h2>
+            <div id="totalBalance">
+                <h3>Total Balance</h3>
+                <p id="balanceAmount"></p>
+            </div>
+            <div id="payment-popup" class="popup">
+                <div class="popup-content">
+                  <span class="close">&times;</span>
+                  <h2>Record Student Payment</h2>
+                <form id="studentPaymentForm">
+                    <div class="form-group">
+                        <label for="studentName">Student Name:</label>
+                        <input type="text" id="studentName" name="studentName" list="studentNameSuggestions" required>
+                        <datalist id="studentNameSuggestions">
+                            <!-- Options will be populated dynamically -->
+                        </datalist>
+                    </div>
+                
+                    <div class="form-group" id="whatsappContainer">
+                        <label for="whatsappNumber">WhatsApp Number:</label>
+                        <input type="tel" id="whatsappNumber" name="whatsappNumber" required>
+                    </div>
+                
+                    <div class="form-group">
+                        <label for="paymentCategory">Payment Category:</label>
+                        <select id="paymentCategory" name="paymentCategory">
+                            <option value="Student">Student</option>
+                            <option value="New Money">New Money</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentAmount">Payment Amount:</label>
+                        <input type="number" id="paymentAmount" name="paymentAmount" required>
+                        <div id="amountSuggestion" class="suggestion-box" style="display: none;">Suggested: $<span id="suggestedAmount"></span></div>
+                    </div>
+                
+                    <div class="form-group">
+                        <label for="paymentDate">Payment Date:</label>
+                        <input type="date" id="paymentDate" name="paymentDate" required>
+                    </div>
+                    <button type="submit" class="btn">Record Payment</button>
+                </form>
+            </div>
+            </div>
+
+            <div id="expense-popup" class="popup">
+                <div class="popup-content">
+                  <span class="close">&times;</span>
+                  <h2>Record Expense</h2>
+                <form id="expenseRecordForm">
+                    <div class="form-group">
+                        <label for="expenseType">Expense Type:</label>
+                        <input type="text" id="expenseType" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseAmount">Expense Amount:</label>
+                        <input type="number" id="expenseAmount" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expenseDate">Expense Date:</label>
+                        <input type="date" id="expenseDate" required>
+                    </div>
+                    <button type="submit" class="btn">Record Expense</button>
+                </form>
+            </div>
+        </div>
+
+            <div id="paymentsList">
+                <h3>Payment Records</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student Name</th>
+                            <th>Category</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paymentsTableBody">
+                        <!-- Payment records will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="chart-container">
+                <div id="incomeChart">
+                  <h3>Monthly Income Chart</h3>
+                <canvas id="monthlyIncomeChart"></canvas>
+            </div>
+        </div>
+
+            <div id="expenseList">
+                <h3>Expense List</h3>
+                <ul id="expenseItems"></ul>
+            </div>
+            <div class="chart-container">
+                <div id="expenseChart">
+                  <h3>Monthly Expense Chart</h3>
+                <canvas id="monthlyExpenseChart"></canvas>
+            </div>
+        </div>
+            
+        </div>
+    </div>
+
+    <div id="studentPopup" class="popup">
+        <div class="popup-content">
+            <span class="close">&times;</span>
+            <h2>Student Payment History</h2>
+            <div id="studentPaymentHistory"></div>
+            <button id="downloadHistoryBtn" class="btn">Download PDF and Send via WhatsApp</button>
+        </div>
+    </div>
+
+    <div id="floating-menu">
+        <button id="main-action-btn" class="floating-btn main-btn">+</button>
+        <button id="record-payment-btn" class="floating-btn sub-btn">💰</button>
+        <button id="record-expense-btn" class="floating-btn sub-btn">💸</button>
+      </div>
+
+
+
+      <script src="dist/bundle.js"></script>
+</body>
+</html>
