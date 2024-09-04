@@ -32,31 +32,41 @@ const downloadHistoryBtn = document.getElementById('downloadHistoryBtn');
 // Update income chart
 let incomeChart;
 let lastMonthlyIncomeData = {};
-function updateIncomeChart(monthlyIncome) {
-    lastMonthlyIncomeData = monthlyIncome;
+
+let incomeExpenseChart;
+function updateIncomeExpenseChart(monthlyIncome, monthlyExpenses) {
     const ctx = document.getElementById('monthlyIncomeChart');
     if (!ctx) {
         console.error('Canvas element not found');
         return;
     }
 
-    if (incomeChart) {
-        incomeChart.destroy();
+    if (incomeExpenseChart) {
+        incomeExpenseChart.destroy();
     }
 
     const chartType = window.innerWidth < 480 ? 'line' : 'bar';
 
-    incomeChart = new Chart(ctx, {
+    incomeExpenseChart = new Chart(ctx, {
         type: chartType,
         data: {
-            labels: Object.keys(monthlyIncome),
-            datasets: [{
-                label: 'Monthly Income',
-                data: Object.values(monthlyIncome),
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
+            labels: Object.keys(monthlyIncome), // Assuming income and expense have the same months
+            datasets: [
+                {
+                    label: 'Monthly Income',
+                    data: Object.values(monthlyIncome),
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Monthly Expenses',
+                    data: Object.values(monthlyExpenses),
+                    backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }
+            ]
         },
         options: {
             responsive: true,
@@ -67,7 +77,7 @@ function updateIncomeChart(monthlyIncome) {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Income ($)'
+                        text: 'Amount ($)'
                     },
                     ticks: {
                         callback: function(value, index, values) {
@@ -88,11 +98,11 @@ function updateIncomeChart(monthlyIncome) {
             },
             plugins: {
                 legend: {
-                    display: false,
+                    display: true,
                 },
                 title: {
                     display: true,
-                    text: 'Monthly Income'
+                    text: 'Monthly Income & Expenses'
                 }
             }
         }
@@ -358,11 +368,23 @@ function initApp() {
         }
     });
 
+    
+
     // Ensure the elements exist before adding event listeners
     const studentNameInput = document.getElementById('studentName');
     if (studentNameInput) {
         studentNameInput.addEventListener('input', loadStudentNames);
     }
+
+    // Agregar el event listener para el formulario de gastos
+    const expenseForm = document.getElementById('expenseRecordForm');
+    if (expenseForm) {
+        expenseForm.addEventListener('submit', recordExpense);
+        console.log('Event listener added to expense form');
+    } else {
+        console.error('Expense form not found');
+    }
+    
 
     authForm.addEventListener('submit', (e) => e.preventDefault());
     loginBtn.addEventListener('click', loginUser);
@@ -452,14 +474,29 @@ async function recordStudentPayment(e) {
 
 async function recordExpense(e) {
     e.preventDefault();
-    const expenseType = document.getElementById('expenseType').value.trim();
-    const expenseAmount = parseFloat(document.getElementById('expenseAmount').value);
-    const expenseDate = document.getElementById('expenseDate').value;
+    console.log('recordExpense function called');
 
-    if (!expenseType || expenseAmount <= 0 || !expenseDate) {
-        alert('Please enter valid expense details.');
+    // Obtener los elementos del formulario directamente por sus etiquetas
+    const formInputs = document.querySelectorAll('#expense-popup input');
+    const expenseType = formInputs[0].value.trim();
+    const expenseAmount = formInputs[1].value.trim();
+    const expenseDate = formInputs[2].value.trim();
+
+    console.log('Raw form values:', { expenseType, expenseAmount, expenseDate });
+
+    if (!expenseType || !expenseAmount || !expenseDate) {
+        alert('Please fill in all fields.');
         return;
     }
+
+    const parsedAmount = parseFloat(expenseAmount);
+
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        alert('Please enter a valid positive number for the expense amount.');
+        return;
+    }
+
+    console.log('Parsed expense details:', { expenseType, amount: parsedAmount, expenseDate });
 
     const user = firebase.auth().currentUser;
     if (user) {
@@ -467,47 +504,95 @@ async function recordExpense(e) {
         try {
             await expenseRef.push({
                 type: expenseType,
-                amount: expenseAmount,
+                amount: parsedAmount,
                 date: expenseDate
             });
+            console.log('Expense recorded successfully');
             alert('Expense recorded successfully!');
-            expenseRecordForm.reset();
+            document.getElementById('expense-popup').style.display = 'none';
+            document.querySelector('#expense-popup form').reset();
             loadUserData();
             updateBalance();
         } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to record expense. Please try again.');
+            console.error('Error recording expense:', error);
+            alert('Failed to record expense. Please try again. Error: ' + error.message);
         }
+    } else {
+        console.error('No user is signed in');
+        alert('Please sign in to record an expense.');
+    }
+
+    try {
+        await expenseRef.push({
+            type: expenseType,
+            amount: parsedAmount,
+            date: expenseDate
+        });
+        console.log('Expense recorded successfully');
+        alert('Expense recorded successfully!');
+        document.getElementById('expense-popup').style.display = 'none';
+        document.querySelector('#expense-popup form').reset();
+        loadUserData(); // Llamar a loadUserData aquí
+        updateBalance();
+    } catch (error) {
+        // ... (manejo de errores existente) ...
     }
 }
+
+// Asegúrate de que esta línea esté presente en tu código
+document.querySelector('#expense-popup form').addEventListener('submit', recordExpense);
+
+
 
 function loadUserData() {
     const user = firebase.auth().currentUser;
     if (user) {
-        // Load and display expenses
         const expenseRef = firebase.database().ref('expenses/' + user.uid);
         expenseRef.on('value', (snapshot) => {
-            let html = '';
+            let html = '<ul>';
             snapshot.forEach((childSnapshot) => {
                 const expense = childSnapshot.val();
-                html += `<li>Type: ${expense.type}, Amount: $${expense.amount.toFixed(2)}, Date: ${expense.date}</li>`;
+                html += `<li>
+                    <span>${expense.type}</span>
+                    <span>$${expense.amount.toFixed(2)}</span>
+                    <small>${expense.date}</small>
+                </li>`;
             });
-            expenseItems.innerHTML = html;
+            html += '</ul>';
+            const expenseListElement = document.getElementById('expenseList');
+            if (expenseListElement) {
+                expenseListElement.innerHTML = html;
+            } else {
+                console.error('Expense list element not found');
+            }
+        }, (error) => {
+            console.error('Error loading expenses:', error);
         });
 
-        // Load and display income chart
+        // Load and display income and expenses chart
         const paymentRef = firebase.database().ref('payments/' + user.uid);
-        paymentRef.on('value', (snapshot) => {
-            const monthlyIncome = {};
-            snapshot.forEach((childSnapshot) => {
-                const payment = childSnapshot.val();
-                const month = new Date(payment.date).toLocaleString('default', { month: 'long' });
-                monthlyIncome[month] = (monthlyIncome[month] || 0) + payment.amount;
+        Promise.all([expenseRef.once('value'), paymentRef.once('value')])
+            .then(([expenseSnapshot, paymentSnapshot]) => {
+                const monthlyExpenses = {};
+                const monthlyIncome = {};
+
+                expenseSnapshot.forEach((childSnapshot) => {
+                    const expense = childSnapshot.val();
+                    const month = new Date(expense.date).toLocaleString('default', { month: 'long' });
+                    monthlyExpenses[month] = (monthlyExpenses[month] || 0) + expense.amount;
+                });
+
+                paymentSnapshot.forEach((childSnapshot) => {
+                    const payment = childSnapshot.val();
+                    const month = new Date(payment.date).toLocaleString('default', { month: 'long' });
+                    monthlyIncome[month] = (monthlyIncome[month] || 0) + payment.amount;
+                });
+
+                updateIncomeExpenseChart(monthlyIncome, monthlyExpenses);
             });
-            updateIncomeChart(monthlyIncome);
-        });
     }
 }
+
 
 // Initialize the app when the window loads
 window.onload = initApp;
@@ -585,32 +670,51 @@ function updateExpenseChart(monthlyExpenses) {
 function loadUserData() {
     const user = firebase.auth().currentUser;
     if (user) {
-        // Load and display expenses
         const expenseRef = firebase.database().ref('expenses/' + user.uid);
-        const monthlyExpenses = {};
-        expenseRef.on('value', (snapshot) => {
-            let html = '';
-            snapshot.forEach((childSnapshot) => {
+        const paymentRef = firebase.database().ref('payments/' + user.uid);
+        
+        Promise.all([
+            expenseRef.once('value'),
+            paymentRef.once('value')
+        ]).then(([expenseSnapshot, paymentSnapshot]) => {
+            const monthlyExpenses = {};
+            const monthlyIncome = {};
+
+            // Process expenses
+            let expenseListHtml = '<ul>';
+            expenseSnapshot.forEach((childSnapshot) => {
                 const expense = childSnapshot.val();
-                html += `<li><span>Type:</span> ${expense.type} <small>Amount: $${expense.amount.toFixed(2)}</small><small class="expense-date">Date: ${expense.date}</small></li>`;
-                
                 const month = new Date(expense.date).toLocaleString('default', { month: 'long' });
                 monthlyExpenses[month] = (monthlyExpenses[month] || 0) + expense.amount;
+                
+                expenseListHtml += `<li>
+                    <span>${expense.type}</span>
+                    <span>$${expense.amount.toFixed(2)}</span>
+                    <small>${expense.date}</small>
+                </li>`;
             });
-            expenseItems.innerHTML = html;
-            updateExpenseChart(monthlyExpenses);  // Update the expense chart with the monthly data
-        });
+            expenseListHtml += '</ul>';
 
-        // Load and display income chart
-        const paymentRef = firebase.database().ref('payments/' + user.uid);
-        paymentRef.on('value', (snapshot) => {
-            const monthlyIncome = {};
-            snapshot.forEach((childSnapshot) => {
+            // Update expense list
+            const expenseListElement = document.getElementById('expenseList');
+            if (expenseListElement) {
+                expenseListElement.innerHTML = expenseListHtml;
+            } else {
+                console.error('Expense list element not found');
+            }
+
+            // Process payments
+            paymentSnapshot.forEach((childSnapshot) => {
                 const payment = childSnapshot.val();
                 const month = new Date(payment.date).toLocaleString('default', { month: 'long' });
                 monthlyIncome[month] = (monthlyIncome[month] || 0) + payment.amount;
             });
-            updateIncomeChart(monthlyIncome);
+
+            // Update chart
+            updateIncomeExpenseChart(monthlyIncome, monthlyExpenses);
+        }).catch(error => {
+            console.error('Error loading user data:', error);
+            alert('There was an error loading your data. Please try refreshing the page.');
         });
     }
 }
@@ -682,5 +786,6 @@ function showPopup(popup) {
   // Inicialización de la aplicación
   window.onload = function() {
     initApp();
+    loadUserData();
     // La inicialización de los botones flotantes ya está incluida en los event listeners anteriores
   };
